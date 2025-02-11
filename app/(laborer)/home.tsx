@@ -10,15 +10,39 @@ import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { GuideCharacter } from '@/components/GuideCharacter';
-import { colors, SPACING } from '@/constants/Theme';
+import { colors, shadows, SPACING } from '@/constants/Theme';
 
-// Mock data
-const MOCK_STATS = {
-  activeApplications: 3,
-  totalEarnings: '₹15,000',
-  completedJobs: 12,
-  rating: 4.5,
-};
+// Updated mock data with more descriptive stats
+const MOCK_STATS = [
+  {
+    id: '1',
+    title: 'Active Applications',
+    value: '3',
+    icon: 'clipboard-check',
+    color: colors.primary,
+  },
+  {
+    id: '2',
+    title: 'Total Earnings',
+    value: '₹15,000',
+    icon: 'currency-inr',
+    color: colors.success,
+  },
+  {
+    id: '3',
+    title: 'Completed Jobs',
+    value: '12',
+    icon: 'briefcase-check',
+    color: colors.info,
+  },
+  {
+    id: '4',
+    title: 'Rating',
+    value: '4.5',
+    icon: 'star',
+    color: colors.warning,
+  },
+];
 
 const MOCK_UPCOMING_JOBS = [
   {
@@ -72,71 +96,54 @@ export default function LaborerHomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.title}>
-        Welcome Back!
-      </ThemedText>
-      
-      <GuideCharacter 
-        message="Hi! I'm here to help you find the perfect job. Let's get started!"
-        icon="robot-happy"
-      />
-      
+      <ThemedView style={styles.header}>
+        <ThemedText type="title">Welcome Back!</ThemedText>
+        <Button
+          title="Find Jobs"
+          onPress={() => router.push('/(laborer)/jobs')}
+          leftIcon="briefcase-search"
+          style={styles.findButton}
+        />
+      </ThemedView>
+
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: showGuide ? 120 : SPACING.xl },
-        ]}>
-        {/* Header */}
-        <ThemedView style={styles.header}>
-          <ThemedText type="title">Welcome, Worker!</ThemedText>
-          <Button
-            title="Find Jobs"
-            onPress={() => router.push('/(laborer)/jobs')}
-            leftIcon="briefcase-search"
-            style={styles.findButton}
-          />
-        </ThemedView>
-
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Stats Grid */}
-        <Animated.View 
-          entering={FadeInDown.delay(200)}
-          style={styles.statsGrid}
-        >
-          <ThemedView style={[styles.statCard, { backgroundColor: colors.primary }]}>
-            <MaterialCommunityIcons name="clipboard-check" size={24} color="white" />
-            <ThemedText style={styles.statNumber}>{MOCK_STATS.activeApplications}</ThemedText>
-            <ThemedText style={styles.statLabel}>Active Applications</ThemedText>
-          </ThemedView>
-
-          <ThemedView style={[styles.statCard, { backgroundColor: colors.success }]}>
-            <MaterialCommunityIcons name="currency-inr" size={24} color="white" />
-            <ThemedText style={styles.statNumber}>{MOCK_STATS.totalEarnings}</ThemedText>
-            <ThemedText style={styles.statLabel}>Total Earnings</ThemedText>
-          </ThemedView>
-
-          <ThemedView style={[styles.statCard, { backgroundColor: colors.info }]}>
-            <MaterialCommunityIcons name="briefcase-check" size={24} color="white" />
-            <ThemedText style={styles.statNumber}>{MOCK_STATS.completedJobs}</ThemedText>
-            <ThemedText style={styles.statLabel}>Completed Jobs</ThemedText>
-          </ThemedView>
-
-          <ThemedView style={[styles.statCard, { backgroundColor: colors.warning }]}>
-            <MaterialCommunityIcons name="star" size={24} color="white" />
-            <ThemedText style={styles.statNumber}>{MOCK_STATS.rating}</ThemedText>
-            <ThemedText style={styles.statLabel}>Rating</ThemedText>
-          </ThemedView>
-        </Animated.View>
+        <ThemedView style={styles.statsGrid}>
+          {MOCK_STATS.map((stat, index) => (
+            <Animated.View 
+              key={stat.id}
+              entering={FadeInDown.delay(index * 100)}
+              style={styles.statCardContainer}
+            >
+              <ThemedView style={[styles.statCard, { backgroundColor: stat.color }]}>
+                <MaterialCommunityIcons 
+                  name={stat.icon} 
+                  size={24} 
+                  color={colors.text.inverse} 
+                />
+                <ThemedText style={styles.statValue}>{stat.value}</ThemedText>
+                <ThemedText style={styles.statLabel}>{stat.title}</ThemedText>
+              </ThemedView>
+            </Animated.View>
+          ))}
+        </ThemedView>
 
         {/* Upcoming Jobs */}
         <ThemedView style={styles.section}>
-          <ThemedText type="subtitle">Upcoming Jobs</ThemedText>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Upcoming Jobs
+          </ThemedText>
           {MOCK_UPCOMING_JOBS.map((job) => (
             <ThemedView key={job.id} style={styles.jobCard}>
               <ThemedView style={styles.jobHeader}>
-                <ThemedText type="defaultSemiBold">{job.title}</ThemedText>
+                <ThemedText type="subtitle" style={styles.jobTitle}>
+                  {job.title}
+                </ThemedText>
                 <ThemedText style={styles.wage}>{job.wage}</ThemedText>
               </ThemedView>
 
@@ -145,7 +152,7 @@ export default function LaborerHomeScreen() {
                   <MaterialCommunityIcons 
                     name="calendar" 
                     size={16} 
-                    color={colors.placeholder} 
+                    color={colors.text.secondary} 
                   />
                   <ThemedText style={styles.detailText}>
                     {job.date} at {job.time}
@@ -156,9 +163,11 @@ export default function LaborerHomeScreen() {
                   <MaterialCommunityIcons 
                     name="map-marker" 
                     size={16} 
-                    color={colors.placeholder} 
+                    color={colors.text.secondary} 
                   />
-                  <ThemedText style={styles.detailText}>{job.location}</ThemedText>
+                  <ThemedText style={styles.detailText}>
+                    {job.location}
+                  </ThemedText>
                 </ThemedView>
               </ThemedView>
             </ThemedView>
@@ -168,8 +177,9 @@ export default function LaborerHomeScreen() {
 
       {showGuide && (
         <GuideCharacter
-          messages={GUIDE_MESSAGES}
-          onComplete={() => setShowGuide(false)}
+          message="Welcome! I'm here to help you find the perfect job. Let's get started!"
+          icon="robot-happy"
+          onDismiss={() => setShowGuide(false)}
         />
       )}
     </ThemedView>
@@ -180,76 +190,87 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: SPACING.md,
-  },
-  title: {
-    marginBottom: SPACING.lg,
-  },
-  scrollContent: {
-    padding: SPACING.xl,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    padding: SPACING.lg,
+    backgroundColor: colors.surface,
+    ...shadows.sm,
   },
   findButton: {
     height: 40,
   },
+  scrollContent: {
+    padding: SPACING.md,
+    gap: SPACING.lg,
+  },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
+    gap: SPACING.md,
+    padding: SPACING.xs,
+  },
+  statCardContainer: {
+    width: `${50 - (SPACING.md / 2)}%`,
   },
   statCard: {
-    width: '47%',
-    padding: 16,
-    borderRadius: 12,
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    padding: SPACING.md,
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
+    ...shadows.sm,
   },
-  statNumber: {
-    fontSize: 24,
+  statValue: {
+    fontSize: 28,
     fontWeight: 'bold',
-    color: 'white',
-    marginVertical: 4,
+    color: colors.text.inverse,
+    marginVertical: SPACING.xs,
   },
   statLabel: {
-    fontSize: 12,
-    color: 'white',
+    fontSize: 13,
+    color: colors.text.inverse,
     textAlign: 'center',
   },
   section: {
-    gap: 12,
+    gap: SPACING.md,
+  },
+  sectionTitle: {
+    marginBottom: SPACING.xs,
   },
   jobCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    gap: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: SPACING.md,
+    ...shadows.sm,
   },
   jobHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  jobTitle: {
+    flex: 1,
+    marginRight: SPACING.sm,
   },
   wage: {
-    color: Colors.light.primary,
+    color: colors.primary,
     fontWeight: '600',
   },
   jobDetails: {
-    gap: 8,
+    gap: SPACING.xs,
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING.sm,
   },
   detailText: {
     fontSize: 14,
-    color: Colors.light.placeholder,
+    color: colors.text.secondary,
   },
 }); 

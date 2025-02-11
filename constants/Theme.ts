@@ -85,6 +85,8 @@ export const Theme = {
     primaryDark: BRAND_COLORS.primary[700],
     primaryLight: BRAND_COLORS.primary[300],
     accent: BRAND_COLORS.accent[500],
+    accentLight: BRAND_COLORS.accent[300],
+    accentDark: BRAND_COLORS.accent[700],
     
     // Background colors
     background: '#FFFFFF',

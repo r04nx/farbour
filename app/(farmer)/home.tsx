@@ -8,10 +8,41 @@ import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { Button } from '@/components/ui/Button';
 import { JobCard } from '@/components/JobCard';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { colors, shadows, SPACING } from '@/constants/Theme';
 
-// Temporary mock data
+// Mock data for farmer stats
+const FARMER_STATS = [
+  {
+    id: '1',
+    title: 'Active Jobs',
+    value: '2',
+    icon: 'briefcase',
+    color: colors.primary,
+  },
+  {
+    id: '2',
+    title: 'Total Workers',
+    value: '15',
+    icon: 'account-group',
+    color: colors.success,
+  },
+  {
+    id: '3',
+    title: 'Applications',
+    value: '8',
+    icon: 'file-document',
+    color: colors.info,
+  },
+  {
+    id: '4',
+    title: 'Rating',
+    value: '4.8',
+    icon: 'star',
+    color: colors.warning,
+  },
+];
+
+// Mock jobs data
 const MOCK_JOBS = [
   {
     id: '1',
@@ -35,56 +66,58 @@ const MOCK_JOBS = [
 
 export default function FarmerHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
 
   const onRefresh = () => {
     setRefreshing(true);
-    // Fetch jobs data
     setTimeout(() => setRefreshing(false), 1000);
   };
 
   return (
     <ThemedView style={styles.container}>
+      <ThemedView style={styles.header}>
+        <ThemedText type="title">Welcome Back!</ThemedText>
+        <Button
+          title="Post Job"
+          onPress={() => router.push('/(farmer)/post-job')}
+          leftIcon="plus"
+          style={styles.postButton}
+        />
+      </ThemedView>
+
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        contentContainerStyle={styles.scrollContent}>
-        {/* Header Section */}
-        <ThemedView style={styles.header}>
-          <ThemedText type="title">Welcome, Farmer!</ThemedText>
-          <Button
-            title="Post New Job"
-            onPress={() => router.push('/(farmer)/post-job')}
-            leftIcon="plus"
-            style={styles.postButton}
-          />
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Stats Grid */}
+        <ThemedView style={styles.statsGrid}>
+          {FARMER_STATS.map((stat, index) => (
+            <Animated.View 
+              key={stat.id}
+              entering={FadeInDown.delay(index * 100)}
+              style={styles.statCardContainer}
+            >
+              <ThemedView style={[styles.statCard, { backgroundColor: stat.color }]}>
+                <MaterialCommunityIcons 
+                  name={stat.icon} 
+                  size={24} 
+                  color={colors.text.inverse} 
+                />
+                <ThemedText style={styles.statValue}>{stat.value}</ThemedText>
+                <ThemedText style={styles.statLabel}>{stat.title}</ThemedText>
+              </ThemedView>
+            </Animated.View>
+          ))}
         </ThemedView>
 
-        {/* Stats Section */}
-        <Animated.View 
-          entering={FadeInDown.delay(200)}
-          style={styles.statsContainer}
-        >
-          <ThemedView style={[styles.statCard, { backgroundColor: colors.primary }]}>
-            <MaterialCommunityIcons name="file-document" size={24} color="white" />
-            <ThemedText style={styles.statNumber}>2</ThemedText>
-            <ThemedText style={styles.statLabel}>Active Jobs</ThemedText>
-          </ThemedView>
-
-          <ThemedView style={[styles.statCard, { backgroundColor: colors.info }]}>
-            <MaterialCommunityIcons name="account-group" size={24} color="white" />
-            <ThemedText style={styles.statNumber}>10</ThemedText>
-            <ThemedText style={styles.statLabel}>Total Applicants</ThemedText>
-          </ThemedView>
-        </Animated.View>
-
-        {/* Active Jobs Section */}
+        {/* Active Jobs */}
         <ThemedView style={styles.section}>
-          <ThemedText type="subtitle">Your Active Jobs</ThemedText>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Active Jobs
+          </ThemedText>
           {MOCK_JOBS.map((job) => (
-            <JobCard
+            <JobCard 
               key={job.id}
               job={job}
               onPress={() => router.push(`/(farmer)/job/${job.id}`)}
@@ -99,42 +132,56 @@ export default function FarmerHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    padding: SPACING.lg,
+    backgroundColor: colors.surface,
+    ...shadows.sm,
   },
   postButton: {
     height: 40,
   },
-  statsContainer: {
+  scrollContent: {
+    padding: SPACING.md,
+    gap: SPACING.lg,
+  },
+  statsGrid: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
+    flexWrap: 'wrap',
+    gap: SPACING.md,
+    padding: SPACING.xs,
+  },
+  statCardContainer: {
+    width: `${50 - (SPACING.md / 2)}%`,
   },
   statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    padding: SPACING.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.sm,
   },
-  statNumber: {
-    fontSize: 24,
+  statValue: {
+    fontSize: 28,
     fontWeight: 'bold',
-    color: 'white',
-    marginVertical: 4,
+    color: colors.text.inverse,
+    marginVertical: SPACING.xs,
   },
   statLabel: {
-    fontSize: 12,
-    color: 'white',
+    fontSize: 13,
+    color: colors.text.inverse,
     textAlign: 'center',
   },
   section: {
-    gap: 12,
+    gap: SPACING.md,
+  },
+  sectionTitle: {
+    marginBottom: SPACING.xs,
   },
 }); 
