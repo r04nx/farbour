@@ -6,7 +6,10 @@ interface ThemeContextType {
   shadows: typeof Theme.shadows;
 }
 
-const ThemeContext = createContext<ThemeContextType | null>(null);
+const ThemeContext = createContext<ThemeContextType>({
+  colors: Theme.colors,
+  shadows: Theme.shadows,
+});
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const value = {

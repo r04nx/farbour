@@ -30,6 +30,7 @@ export const TYPOGRAPHY = {
     xxl: 32,
   },
   weights: {
+    light: '300',
     regular: '400',
     medium: '500',
     semibold: '600',
@@ -80,61 +81,61 @@ export const BRAND_COLORS = {
 // Theme configuration
 export const Theme = {
   colors: {
-    // Main colors
-    primary: BRAND_COLORS.primary[500],
-    primaryDark: BRAND_COLORS.primary[700],
-    primaryLight: BRAND_COLORS.primary[300],
-    accent: BRAND_COLORS.accent[500],
-    accentLight: BRAND_COLORS.accent[300],
-    accentDark: BRAND_COLORS.accent[700],
-    
-    // Background colors
-    background: '#FFFFFF',
-    surface: '#FFFFFF',
-    surfaceVariant: BRAND_COLORS.neutral[50],
-    overlay: 'rgba(255, 255, 255, 0.95)',
-    
-    // Text colors
-    text: {
-      primary: BRAND_COLORS.neutral[900],      // Almost black for main text
-      secondary: BRAND_COLORS.neutral[700],     // Dark gray for secondary text
-      tertiary: BRAND_COLORS.neutral[500],      // Medium gray for subtle text
-      inverse: '#FFFFFF',                       // White text for dark backgrounds
-      link: BRAND_COLORS.primary[700],          // Dark green for links
-      disabled: BRAND_COLORS.neutral[400],      // Light gray for disabled text
-    },
-
-    // Utility colors
-    border: BRAND_COLORS.neutral[200],
-    divider: BRAND_COLORS.neutral[200],
-    placeholder: BRAND_COLORS.neutral[400],
-    success: '#4CAF50',
+    primary: '#4CAF50',
+    secondary: '#2196F3',
+    accent: '#FF9800',
     error: '#F44336',
-    warning: '#FF9800',
+    warning: '#FFC107',
     info: '#2196F3',
-  },
-  
-  shadows: {
-    sm: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.18,
-      shadowRadius: 1.0,
-      elevation: 1,
+    success: '#4CAF50',
+    background: {
+      primary: '#FFFFFF',
+      secondary: '#F5F5F5',
+      overlay: 'rgba(0, 0, 0, 0.5)',
     },
-    md: {
+    text: {
+      primary: '#212121',
+      secondary: '#757575',
+      disabled: '#BDBDBD',
+      inverse: '#FFFFFF',
+      link: '#2196F3',
+    },
+    border: {
+      light: '#E0E0E0',
+      medium: '#BDBDBD',
+      dark: '#9E9E9E',
+    },
+  },
+  shadows: {
+    small: {
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
       shadowOpacity: 0.25,
       shadowRadius: 3.84,
-      elevation: 3,
+      elevation: 2,
     },
-    lg: {
+    medium: {
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
+      shadowOffset: {
+        width: 0,
+        height: 4,
+      },
+      shadowOpacity: 0.30,
       shadowRadius: 4.65,
-      elevation: 6,
+      elevation: 4,
+    },
+    large: {
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 6,
+      },
+      shadowOpacity: 0.37,
+      shadowRadius: 7.49,
+      elevation: 8,
     },
   },
 };

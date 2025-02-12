@@ -1,187 +1,285 @@
 import { useState } from 'react';
-import { StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { StyleSheet, ScrollView, Dimensions, TouchableOpacity, RefreshControl, Platform, ImageBackground } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { Button } from '@/components/ui/Button';
-import { JobCard } from '@/components/JobCard';
-import { colors, shadows, SPACING } from '@/constants/Theme';
+import { SPACING, TYPOGRAPHY, BRAND_COLORS } from '@/constants/Theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 
-// Mock data for farmer stats
-const FARMER_STATS = [
-  {
-    id: '1',
-    title: 'Active Jobs',
-    value: '2',
-    icon: 'briefcase',
-    color: colors.primary,
-  },
-  {
-    id: '2',
-    title: 'Total Workers',
-    value: '15',
-    icon: 'account-group',
-    color: colors.success,
-  },
-  {
-    id: '3',
-    title: 'Applications',
-    value: '8',
-    icon: 'file-document',
-    color: colors.info,
-  },
-  {
-    id: '4',
-    title: 'Rating',
-    value: '4.8',
-    icon: 'star',
-    color: colors.warning,
-  },
-];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Mock jobs data
-const MOCK_JOBS = [
-  {
-    id: '1',
-    title: 'Rice Field Workers Needed',
-    location: 'Bangalore Rural',
-    wage: '₹500/day',
-    duration: '5 days',
-    applicants: 3,
-    status: 'active',
-  },
-  {
-    id: '2',
-    title: 'Harvest Season Help',
-    location: 'Mysore',
-    wage: '₹450/day',
-    duration: '2 weeks',
-    applicants: 7,
-    status: 'active',
-  },
-];
+// Farm background image from Unsplash - darker, more professional image
+const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?q=80&w=1920&fit=crop';
+
+const OVERLAY_COLORS = ['rgba(0,0,0,0.8)', 'rgba(0,0,0,0.95)'] as const;
+
+type QuickAction = {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  label: string;
+  onPress: () => void;
+  gradient: [string, string];
+};
 
 export default function FarmerHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
+  const { colors } = useTheme();
+  const { profile } = useAuth();
 
-  const onRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    setTimeout(() => setRefreshing(false), 1500);
   };
 
+  const quickActions: QuickAction[] = [
+    {
+      icon: 'plus-circle',
+      label: 'Post Job',
+      onPress: () => router.push('/post-job' as any),
+      gradient: [BRAND_COLORS.primary[700], BRAND_COLORS.primary[900]],
+    },
+    {
+      icon: 'account-group',
+      label: 'My Workers',
+      onPress: () => router.push('/workers' as any),
+      gradient: [BRAND_COLORS.accent[700], BRAND_COLORS.accent[900]],
+    },
+  ];
+
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title">Welcome Back!</ThemedText>
-        <Button
-          title="Post Job"
-          onPress={() => router.push('/(farmer)/post-job')}
-          leftIcon="plus"
-          style={styles.postButton}
-        />
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
+    >
+      {/* Header Section */}
+      <ImageBackground
+        source={{ uri: BACKGROUND_IMAGE }}
+        style={styles.header}
+      >
+        <LinearGradient
+          colors={OVERLAY_COLORS}
+          style={styles.headerOverlay}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <ThemedText style={styles.greeting}>
+            Welcome back,
+          </ThemedText>
+          <ThemedText style={styles.name}>
+            {profile?.name || 'Farmer'}
+          </ThemedText>
+
+          {/* Stats Row */}
+          <ThemedView style={styles.statsRow}>
+            <ThemedView style={styles.statItem}>
+              <ThemedText style={styles.statValue}>3</ThemedText>
+              <ThemedText style={styles.statLabel}>Active Jobs</ThemedText>
+            </ThemedView>
+            <ThemedView style={styles.statDivider} />
+            <ThemedView style={styles.statItem}>
+              <ThemedText style={styles.statValue}>12</ThemedText>
+              <ThemedText style={styles.statLabel}>Workers</ThemedText>
+            </ThemedView>
+          </ThemedView>
+        </LinearGradient>
+      </ImageBackground>
+
+      {/* Quick Actions */}
+      <ThemedView style={styles.actionsContainer}>
+        {quickActions.map((action, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.actionButton}
+            onPress={action.onPress}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={action.gradient}
+              style={styles.actionGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <MaterialCommunityIcons
+                name={action.icon}
+                size={32}
+                color="#fff"
+              />
+              <ThemedText style={styles.actionLabel}>
+                {action.label}
+              </ThemedText>
+            </LinearGradient>
+          </TouchableOpacity>
+        ))}
       </ThemedView>
 
-      <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Stats Grid */}
-        <ThemedView style={styles.statsGrid}>
-          {FARMER_STATS.map((stat, index) => (
-            <Animated.View 
-              key={stat.id}
-              entering={FadeInDown.delay(index * 100)}
-              style={styles.statCardContainer}
-            >
-              <ThemedView style={[styles.statCard, { backgroundColor: stat.color }]}>
-                <MaterialCommunityIcons 
-                  name={stat.icon} 
-                  size={24} 
-                  color={colors.text.inverse} 
-                />
-                <ThemedText style={styles.statValue}>{stat.value}</ThemedText>
-                <ThemedText style={styles.statLabel}>{stat.title}</ThemedText>
-              </ThemedView>
-            </Animated.View>
-          ))}
-        </ThemedView>
-
-        {/* Active Jobs */}
-        <ThemedView style={styles.section}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>
-            Active Jobs
-          </ThemedText>
-          {MOCK_JOBS.map((job) => (
-            <JobCard 
-              key={job.id}
-              job={job}
-              onPress={() => router.push(`/(farmer)/job/${job.id}`)}
+      {/* Recent Activity */}
+      <ThemedView style={styles.section}>
+        <ThemedText style={styles.sectionTitle}>
+          Recent Activity
+        </ThemedText>
+        <ThemedView style={styles.activityCard}>
+          <ThemedView style={styles.activityItem}>
+            <MaterialCommunityIcons
+              name="account-check"
+              size={24}
+              color={BRAND_COLORS.primary[400]}
             />
-          ))}
+            <ThemedView style={styles.activityContent}>
+              <ThemedText style={styles.activityTitle}>
+                New Worker Available
+              </ThemedText>
+              <ThemedText style={styles.activityTime}>
+                2h ago
+              </ThemedText>
+            </ThemedView>
+          </ThemedView>
+
+          <ThemedView style={styles.activityItem}>
+            <MaterialCommunityIcons
+              name="calendar-check"
+              size={24}
+              color={BRAND_COLORS.accent[400]}
+            />
+            <ThemedView style={styles.activityContent}>
+              <ThemedText style={styles.activityTitle}>
+                Job Completed: Wheat Harvesting
+              </ThemedText>
+              <ThemedText style={styles.activityTime}>
+                1d ago
+              </ThemedText>
+            </ThemedView>
+          </ThemedView>
         </ThemedView>
-      </ScrollView>
-    </ThemedView>
+      </ThemedView>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: BRAND_COLORS.neutral[900],
   },
   header: {
+    height: 280,
+  },
+  headerOverlay: {
+    flex: 1,
+    padding: SPACING.xl,
+    paddingTop: SPACING.xxl * 2,
+  },
+  greeting: {
+    fontSize: TYPOGRAPHY.sizes.lg,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: SPACING.xs,
+  },
+  name: {
+    fontSize: TYPOGRAPHY.sizes.xxl,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.xl,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
     padding: SPACING.lg,
-    backgroundColor: colors.surface,
-    ...shadows.sm,
   },
-  postButton: {
-    height: 40,
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
   },
-  scrollContent: {
-    padding: SPACING.md,
-    gap: SPACING.lg,
+  statDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginHorizontal: SPACING.lg,
   },
-  statsGrid: {
+  statValue: {
+    fontSize: TYPOGRAPHY.sizes.xl,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: SPACING.xs,
+  },
+  statLabel: {
+    fontSize: TYPOGRAPHY.sizes.sm,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  actionsContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    padding: SPACING.lg,
     gap: SPACING.md,
-    padding: SPACING.xs,
   },
-  statCardContainer: {
-    width: `${50 - (SPACING.md / 2)}%`,
+  actionButton: {
+    flex: 1,
+    height: 100,
   },
-  statCard: {
-    width: '100%',
-    aspectRatio: 1,
+  actionGradient: {
+    flex: 1,
     borderRadius: 16,
     padding: SPACING.md,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadows.sm,
+    gap: SPACING.sm,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text.inverse,
-    marginVertical: SPACING.xs,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: colors.text.inverse,
+  actionLabel: {
+    fontSize: TYPOGRAPHY.sizes.md,
+    fontWeight: '600',
+    color: '#fff',
     textAlign: 'center',
   },
   section: {
-    gap: SPACING.md,
+    padding: SPACING.lg,
   },
   sectionTitle: {
-    marginBottom: SPACING.xs,
+    fontSize: TYPOGRAPHY.sizes.lg,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: SPACING.md,
+  },
+  activityCard: {
+    backgroundColor: BRAND_COLORS.neutral[800],
+    borderRadius: 16,
+    padding: SPACING.md,
+    gap: SPACING.md,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: TYPOGRAPHY.sizes.md,
+    fontWeight: '500',
+    color: '#fff',
+  },
+  activityTime: {
+    fontSize: TYPOGRAPHY.sizes.xs,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 2,
   },
 }); 
