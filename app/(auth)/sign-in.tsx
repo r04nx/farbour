@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, ImageBackground, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, ImageBackground, View, TouchableOpacity, Platform, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, FadeIn } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { BACKGROUND_IMAGES } from '@/constants/MockData';
 import { SPACING, TYPOGRAPHY, BRAND_COLORS } from '@/constants/Theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingScreen } from '@/components/LoadingScreen';
 
 const COUNTRY_CODE = '+91';
+const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?q=80&w=2574&auto=format&fit=crop';
 
 export default function SignInScreen() {
   const [name, setName] = useState('');
@@ -51,7 +52,7 @@ export default function SignInScreen() {
       await AsyncStorage.removeItem('rememberedUser');
     }
 
-    const { error: signInError } = await signIn(fullPhoneNumber, name);
+    const { error: signInError, isNewUser } = await signIn(fullPhoneNumber, name);
 
     if (signInError) {
       setError(signInError.message);
@@ -59,7 +60,11 @@ export default function SignInScreen() {
     } else {
       router.push({
         pathname: '/(auth)/verify-otp',
-        params: { phone: fullPhoneNumber }
+        params: { 
+          phone: fullPhoneNumber, 
+          name,
+          isNewUser: isNewUser ? 'true' : 'false'
+        }
       });
     }
   };
@@ -87,134 +92,120 @@ export default function SignInScreen() {
   }
 
   return (
-    <ImageBackground
-      source={{ uri: BACKGROUND_IMAGES.auth.signIn }}
+    <KeyboardAvoidingView 
       style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ThemedView 
-        style={[
-          styles.overlay,
-          { backgroundColor: 'rgba(0, 0, 0, 0.5)' }
-        ]}
+      <ImageBackground
+        source={{ uri: BACKGROUND_IMAGE }}
+        style={styles.background}
       >
-        <Animated.View entering={FadeInUp.delay(200)} style={styles.header}>
-          <MaterialCommunityIcons 
-            name="sprout" 
-            size={80} 
-            color={colors.primary} 
-          />
-          <ThemedText 
-            type="title" 
-            style={[
-              styles.title,
-              { color: colors.text.inverse }
-            ]}
-          >
-            Farbour
-          </ThemedText>
-          <ThemedText 
-            style={[
-              styles.subtitle,
-              { color: colors.text.inverse }
-            ]}
-          >
-            Connecting Farmers and Workers
-          </ThemedText>
-        </Animated.View>
+        <LinearGradient
+          colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.8)']}
+          style={styles.overlay}
+        >
+          <Animated.View entering={FadeInUp.delay(200)} style={styles.header}>
+            <MaterialCommunityIcons 
+              name="sprout" 
+              size={80} 
+              color={BRAND_COLORS.primary[400]} 
+            />
+            <ThemedText type="title" style={styles.title}>
+              Welcome to Farbour
+            </ThemedText>
+            <ThemedText style={styles.subtitle}>
+              Connect with farmers and workers in your area
+            </ThemedText>
+          </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(400)} style={styles.form}>
-          <Input
-            placeholder="Enter your name"
-            value={name}
-            onChangeText={(text) => {
-              setName(text);
-              setError(null);
-            }}
-            leftIcon="account"
-            autoCapitalize="words"
-            autoComplete="name"
-          />
-          
-          <View style={styles.phoneInputContainer}>
-            <ThemedView style={styles.countryCode}>
-              <ThemedText style={styles.countryCodeText}>
-                {COUNTRY_CODE}
-              </ThemedText>
-            </ThemedView>
+          <Animated.View entering={FadeInDown.delay(400)} style={styles.form}>
             <Input
-              placeholder="Enter 10-digit mobile number"
-              value={phone}
+              placeholder="Enter your name"
+              value={name}
               onChangeText={(text) => {
-                setPhone(text.replace(/[^0-9]/g, ''));
+                setName(text);
                 setError(null);
               }}
-              keyboardType="number-pad"
-              leftIcon="phone"
-              autoComplete="tel"
-              maxLength={10}
-              style={styles.phoneInput}
+              leftIcon="account"
+              autoCapitalize="words"
+              autoComplete="name"
+              style={styles.input}
             />
-          </View>
-          
-          {/* Remember Me Option */}
-          <TouchableOpacity
-            style={styles.rememberMeContainer}
-            onPress={() => setRememberMe(!rememberMe)}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons
-              name={rememberMe ? "checkbox-marked" : "checkbox-blank-outline"}
-              size={24}
-              color={rememberMe ? colors.primary : colors.text.secondary}
-            />
-            <ThemedText style={styles.rememberMeText}>
-              Remember me
-            </ThemedText>
-          </TouchableOpacity>
-          
-          {error && (
-            <ThemedView style={styles.errorContainer}>
-              <MaterialCommunityIcons 
-                name="alert-circle" 
-                size={20} 
-                color={colors.error} 
+            
+            <View style={styles.phoneInputContainer}>
+              <ThemedView style={styles.countryCode}>
+                <ThemedText style={styles.countryCodeText}>
+                  {COUNTRY_CODE}
+                </ThemedText>
+              </ThemedView>
+              <Input
+                placeholder="Enter mobile number"
+                value={phone}
+                onChangeText={(text) => {
+                  setPhone(text.replace(/[^0-9]/g, ''));
+                  setError(null);
+                }}
+                keyboardType="number-pad"
+                leftIcon="phone"
+                autoComplete="tel"
+                maxLength={10}
+                style={styles.phoneInput}
               />
-              <ThemedText 
-                style={[
-                  styles.errorText,
-                  { color: colors.error }
-                ]}
+            </View>
+            
+            <TouchableOpacity
+              style={styles.rememberMeContainer}
+              onPress={() => setRememberMe(!rememberMe)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name={rememberMe ? "checkbox-marked" : "checkbox-blank-outline"}
+                size={24}
+                color={rememberMe ? BRAND_COLORS.primary[400] : colors.text.secondary}
+              />
+              <ThemedText style={styles.rememberMeText}>
+                Remember me
+              </ThemedText>
+            </TouchableOpacity>
+            
+            {error && (
+              <Animated.View 
+                entering={FadeIn}
+                style={styles.errorContainer}
               >
-                {error}
+                <MaterialCommunityIcons 
+                  name="alert-circle" 
+                  size={20} 
+                  color={BRAND_COLORS.accent[500]} 
+                />
+                <ThemedText style={styles.errorText}>
+                  {error}
+                </ThemedText>
+              </Animated.View>
+            )}
+
+            <Button 
+              title="Continue"
+              onPress={handleSignIn}
+              disabled={!name || !phone || loading}
+              style={styles.button}
+              leftIcon="arrow-right"
+            />
+
+            <ThemedView style={styles.infoContainer}>
+              <MaterialCommunityIcons 
+                name="shield-check" 
+                size={16} 
+                color={BRAND_COLORS.primary[400]}
+              />
+              <ThemedText style={styles.infoText}>
+                Your information is secure with us
               </ThemedText>
             </ThemedView>
-          )}
-
-          <Button 
-            title="Continue"
-            onPress={handleSignIn}
-            disabled={!name || !phone || loading}
-            style={styles.button}
-          />
-
-          <ThemedView style={styles.infoContainer}>
-            <MaterialCommunityIcons 
-              name="information" 
-              size={16} 
-              color={colors.info}
-            />
-            <ThemedText 
-              style={[
-                styles.infoText,
-                { color: colors.info }
-              ]}
-            >
-              You'll receive a verification code via SMS
-            </ThemedText>
-          </ThemedView>
-        </Animated.View>
-      </ThemedView>
-    </ImageBackground>
+          </Animated.View>
+        </LinearGradient>
+      </ImageBackground>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -222,58 +213,75 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  background: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     padding: SPACING.xl,
+    justifyContent: 'space-between',
   },
   header: {
     alignItems: 'center',
-    marginTop: SPACING.xxl * 2,
-    gap: SPACING.md,
+    marginTop: SPACING.xxl,
+    gap: SPACING.sm,
   },
   title: {
     fontSize: TYPOGRAPHY.sizes.xxl,
     fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: TYPOGRAPHY.sizes.md,
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
+    maxWidth: '80%',
   },
   form: {
-    flex: 1,
-    justifyContent: 'center',
     gap: SPACING.md,
+    marginBottom: SPACING.xxl,
+  },
+  input: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   phoneInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
     height: 50,
-    width: '100%',
-    paddingLeft: 10,
   },
   countryCode: {
-    backgroundColor: BRAND_COLORS.neutral[100],
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: SPACING.md,
-    height: '90%',
+    height: '100%',
     borderRadius: 8,
-    marginRight: 10,
     justifyContent: 'center',
     width: 70,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   countryCodeText: {
     fontSize: TYPOGRAPHY.sizes.md,
     fontWeight: '500',
-    color: BRAND_COLORS.neutral[700],
+    color: '#fff',
   },
   phoneInput: {
     flex: 1,
-    height: '100%',
-    minWidth: 250,
+    width:290,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  button: {
-    marginTop: SPACING.sm,
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  rememberMeText: {
+    fontSize: TYPOGRAPHY.sizes.sm,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   errorContainer: {
     flexDirection: 'row',
@@ -282,31 +290,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(244, 67, 54, 0.1)',
     padding: SPACING.md,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 67, 54, 0.2)',
   },
   errorText: {
     fontSize: TYPOGRAPHY.sizes.sm,
+    color: BRAND_COLORS.accent[500],
     flex: 1,
+  },
+  button: {
+    height: 50,
+    backgroundColor: BRAND_COLORS.primary[500],
   },
   infoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    padding: SPACING.md,
-    borderRadius: 8,
-    marginTop: SPACING.md,
+    justifyContent: 'center',
+    marginTop: SPACING.sm,
   },
   infoText: {
     fontSize: TYPOGRAPHY.sizes.sm,
-  },
-  rememberMeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginTop: SPACING.sm,
-  },
-  rememberMeText: {
-    fontSize: TYPOGRAPHY.sizes.sm,
-    color: BRAND_COLORS.neutral[600],
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 }); 

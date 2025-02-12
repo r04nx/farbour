@@ -14,7 +14,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LoadingScreen } from '@/components/LoadingScreen';
 
 export default function VerifyOTPScreen() {
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { phone, name, isNewUser } = useLocalSearchParams<{ 
+    phone: string;
+    name: string;
+    isNewUser: string;
+  }>();
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +45,11 @@ export default function VerifyOTPScreen() {
       setError(verifyError.message);
       setLoading(false);
     } else {
-      router.push('/(auth)/user-type');
+      if (isNewUser === 'true') {
+        router.push('/(auth)/user-type');
+      } else {
+        router.push('/(farmer)/home');
+      }
     }
   };
 
@@ -62,11 +70,14 @@ export default function VerifyOTPScreen() {
         />
 
         <ThemedText type="title" style={styles.title}>
-          Verify Your Phone
+          {isNewUser === 'true' ? 'Create Your Account' : 'Welcome Back'}
         </ThemedText>
 
         <ThemedText style={styles.description}>
-          We've sent a verification code to {phone}. Please enter it below.
+          {isNewUser === 'true' 
+            ? `We've sent a verification code to ${phone} to create your account.`
+            : `We've sent a verification code to ${phone} to sign you in.`
+          }
         </ThemedText>
 
         <View style={styles.otpContainer}>

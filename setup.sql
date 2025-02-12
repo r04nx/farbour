@@ -1,323 +1,495 @@
--- Enable the necessary extensions
-create extension if not exists "uuid-ossp";
-create extension if not exists "pgcrypto";
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Drop existing types if they exist
+DROP TYPE IF EXISTS user_type CASCADE;
+DROP TYPE IF EXISTS job_status CASCADE;
+DROP TYPE IF EXISTS application_status CASCADE;
+DROP TYPE IF EXISTS worker_status CASCADE;
+DROP TYPE IF EXISTS notification_type CASCADE;
 
 -- Create custom types
-DO $$ BEGIN
-    CREATE TYPE user_type AS ENUM ('farmer', 'laborer');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE user_type AS ENUM ('farmer', 'laborer');
+CREATE TYPE job_status AS ENUM ('draft', 'active', 'completed', 'cancelled');
+CREATE TYPE application_status AS ENUM ('pending', 'accepted', 'rejected', 'completed');
+CREATE TYPE worker_status AS ENUM ('available', 'working', 'unavailable');
+CREATE TYPE notification_type AS ENUM (
+    'application_received',
+    'application_accepted',
+    'application_rejected',
+    'job_completed',
+    'worker_hired',
+    'payment_received',
+    'review_received'
+);
 
-DO $$ BEGIN
-    CREATE TYPE job_status AS ENUM ('draft', 'active', 'completed', 'cancelled');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE application_status AS ENUM ('pending', 'accepted', 'rejected', 'completed');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS worker_history CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS reviews CASCADE;
+DROP TABLE IF EXISTS job_applications CASCADE;
+DROP TABLE IF EXISTS jobs CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
 
 -- Create profiles table
-create table public.profiles (
-    id uuid references auth.users on delete cascade primary key,
-    name text not null,
-    phone text unique not null,
-    user_type user_type not null,
-    created_at timestamptz default now() not null,
-    updated_at timestamptz default now() not null,
+CREATE TABLE public.profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+    name text NOT NULL,
+    phone text NOT NULL UNIQUE,
+    user_type user_type NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
     avatar_url text,
-    is_phone_verified boolean default false,
+    is_phone_verified boolean DEFAULT false,
     location jsonb,
-    rating decimal(3,2) default 0.0,
-    total_ratings integer default 0,
+    rating numeric(3,2) DEFAULT 0 CHECK (rating >= 0 AND rating <= 5),
+    total_ratings integer DEFAULT 0,
     bio text,
     skills text[],
     availability jsonb,
     wage_range jsonb,
-    completed_jobs integer default 0,
-    total_earnings decimal(10,2) default 0.0
+    completed_jobs integer DEFAULT 0,
+    total_earnings numeric(10,2) DEFAULT 0,
+    status worker_status DEFAULT 'available',
+    last_active timestamptz DEFAULT now(),
+    notification_preferences jsonb DEFAULT '{"push": true, "email": true}'::jsonb,
+    theme_preference text DEFAULT 'light',
+    language_preference text DEFAULT 'en'
 );
 
--- Insert test user
-DO $$
-DECLARE
-    test_user_id uuid;
-BEGIN
-    -- Create test user in auth.users
-    INSERT INTO auth.users (
-        id,
-        email,
-        encrypted_password,
-        email_confirmed_at,
-        phone_confirmed_at,
-        phone,
-        created_at,
-        updated_at,
-        raw_user_meta_data
-    )
-    VALUES (
-        uuid_generate_v4(),
-        'rohan@test.com',
-        crypt('test-password', gen_salt('bf')),
-        now(),
-        now(),
-        '1234',
-        now(),
-        now(),
-        jsonb_build_object(
-            'name', 'rohan',
-            'user_type', 'farmer'
-        )
-    )
-    ON CONFLICT (email) DO UPDATE
-    SET phone = EXCLUDED.phone,
-        raw_user_meta_data = EXCLUDED.raw_user_meta_data
-    RETURNING id INTO test_user_id;
-
-    -- Create or update profile for test user
-    INSERT INTO public.profiles (
-        id,
-        name,
-        phone,
-        user_type,
-        is_phone_verified
-    )
-    VALUES (
-        test_user_id,
-        'rohan',
-        '1234',
-        'farmer',
-        true
-    )
-    ON CONFLICT (id) DO UPDATE
-    SET name = EXCLUDED.name,
-        phone = EXCLUDED.phone,
-        user_type = EXCLUDED.user_type,
-        is_phone_verified = EXCLUDED.is_phone_verified;
-END
-$$;
-
 -- Create jobs table
-create table public.jobs (
-    id uuid default uuid_generate_v4() primary key,
-    farmer_id uuid references public.profiles(id) on delete cascade,
-    title text not null,
-    description text not null,
-    location jsonb not null,
-    wage_per_day decimal(10,2) not null,
-    workers_needed integer not null,
-    start_date date not null,
-    end_date date not null,
-    skills_required text[],
-    status job_status default 'draft',
-    created_at timestamptz default now() not null,
-    updated_at timestamptz default now() not null
+CREATE TABLE public.jobs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    farmer_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text NOT NULL,
+    location jsonb NOT NULL,
+    wage_per_day numeric(10,2) NOT NULL CHECK (wage_per_day > 0),
+    workers_needed integer NOT NULL CHECK (workers_needed > 0),
+    start_date date NOT NULL,
+    end_date date NOT NULL,
+    skills_required text[] NOT NULL,
+    status job_status DEFAULT 'draft',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    applications_count integer DEFAULT 0,
+    hired_count integer DEFAULT 0,
+    category text,
+    equipment_provided text[],
+    accommodation_provided boolean DEFAULT false,
+    accommodation_details text,
+    transportation_provided boolean DEFAULT false,
+    transportation_details text,
+    additional_notes text,
+    CHECK (start_date <= end_date)
 );
 
 -- Create job applications table
-create table public.job_applications (
-    id uuid default uuid_generate_v4() primary key,
-    job_id uuid references public.jobs(id) on delete cascade,
-    laborer_id uuid references public.profiles(id) on delete cascade,
-    status application_status default 'pending',
+CREATE TABLE public.job_applications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE,
+    laborer_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    status application_status DEFAULT 'pending',
     cover_note text,
-    created_at timestamptz default now() not null,
-    updated_at timestamptz default now() not null,
-    unique(job_id, laborer_id)
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    expected_start_date date,
+    expected_end_date date,
+    negotiated_wage numeric(10,2),
+    farmer_notes text,
+    laborer_notes text,
+    rejection_reason text,
+    completion_date timestamptz,
+    UNIQUE(job_id, laborer_id)
 );
 
 -- Create reviews table
-create table public.reviews (
-    id uuid default uuid_generate_v4() primary key,
-    reviewer_id uuid references public.profiles(id) on delete cascade,
-    reviewee_id uuid references public.profiles(id) on delete cascade,
-    job_id uuid references public.jobs(id) on delete cascade,
-    rating integer not null check (rating >= 1 and rating <= 5),
+CREATE TABLE public.reviews (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    reviewer_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    reviewee_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    job_id uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE,
+    rating numeric(3,2) NOT NULL CHECK (rating >= 0 AND rating <= 5),
     comment text,
-    created_at timestamptz default now() not null,
-    updated_at timestamptz default now() not null,
-    unique(reviewer_id, reviewee_id, job_id)
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    work_quality numeric(3,2) CHECK (work_quality >= 0 AND work_quality <= 5),
+    reliability numeric(3,2) CHECK (reliability >= 0 AND reliability <= 5),
+    communication numeric(3,2) CHECK (communication >= 0 AND communication <= 5),
+    UNIQUE(reviewer_id, reviewee_id, job_id)
 );
 
--- Enable Row Level Security
-alter table public.profiles enable row level security;
-alter table public.jobs enable row level security;
-alter table public.job_applications enable row level security;
-alter table public.reviews enable row level security;
+-- Create notifications table
+CREATE TABLE public.notifications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    type notification_type NOT NULL,
+    title text NOT NULL,
+    message text NOT NULL,
+    data jsonb,
+    is_read boolean DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
 
--- Create policies for profiles
-create policy "Public profiles are viewable by everyone"
-    on profiles for select
-    using (true);
+-- Create worker history table
+CREATE TABLE public.worker_history (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    worker_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    farmer_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    job_id uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE,
+    start_date date NOT NULL,
+    end_date date,
+    wage_per_day numeric(10,2) NOT NULL,
+    total_days integer,
+    total_earnings numeric(10,2),
+    status application_status NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
 
-create policy "Users can insert their own profile"
-    on profiles for insert
-    with check (auth.uid() = id);
+-- Function to check if user exists and get profile
+CREATE OR REPLACE FUNCTION check_user_exists(phone_number text)
+RETURNS TABLE (
+    exists_in_auth boolean,
+    exists_in_profiles boolean,
+    profile_data json
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    auth_user auth.users;
+    user_profile profiles;
+BEGIN
+    -- Check in auth.users
+    SELECT * INTO auth_user FROM auth.users WHERE phone = phone_number LIMIT 1;
+    
+    -- Check in profiles
+    SELECT * INTO user_profile FROM profiles 
+    WHERE phone = phone_number LIMIT 1;
 
-create policy "Users can update their own profile"
-    on profiles for update
-    using (auth.uid() = id);
+    RETURN QUERY
+    SELECT 
+        auth_user IS NOT NULL as exists_in_auth,
+        user_profile IS NOT NULL as exists_in_profiles,
+        CASE 
+            WHEN user_profile IS NOT NULL THEN 
+                row_to_json(user_profile)
+            ELSE 
+                NULL::json
+        END as profile_data;
+END;
+$$;
 
--- Create policies for jobs
-create policy "Jobs are viewable by everyone"
-    on jobs for select
-    using (true);
+-- Modified handle_new_user function
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS trigger AS $$
+DECLARE
+  phone_number text;
+BEGIN
+  -- Get the phone number from the new user
+  phone_number := NEW.phone;
 
-create policy "Farmers can create jobs"
-    on jobs for insert
-    with check (
-        exists (
-            select 1 from profiles
-            where id = auth.uid()
-            and user_type = 'farmer'
-        )
-    );
+  -- Create a new profile for the user
+  INSERT INTO public.profiles (
+    id,
+    name,
+    phone,
+    user_type,
+    is_phone_verified,
+    created_at,
+    updated_at
+  ) VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', 'New User'),
+    phone_number,
+    COALESCE(NEW.raw_user_meta_data->>'user_type', 'farmer')::user_type,
+    true,
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET
+    name = EXCLUDED.name,
+    phone = EXCLUDED.phone,
+    user_type = EXCLUDED.user_type,
+    is_phone_verified = true,
+    updated_at = NOW();
 
-create policy "Farmers can update their own jobs"
-    on jobs for update
-    using (farmer_id = auth.uid());
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Log the error but don't block user creation
+    RAISE NOTICE 'Error in handle_new_user: %', SQLERRM;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create policies for job applications
-create policy "Job applications are viewable by job owner and applicant"
-    on job_applications for select
-    using (
-        exists (
-            select 1 from jobs
-            where jobs.id = job_applications.job_id
-            and jobs.farmer_id = auth.uid()
-        )
-        or
-        laborer_id = auth.uid()
-    );
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
 
-create policy "Laborers can apply to jobs"
-    on job_applications for insert
-    with check (
-        exists (
-            select 1 from profiles
-            where id = auth.uid()
-            and user_type = 'laborer'
-        )
-        and
-        laborer_id = auth.uid()
-    );
-
-create policy "Job owners and applicants can update applications"
-    on job_applications for update
-    using (
-        exists (
-            select 1 from jobs
-            where jobs.id = job_applications.job_id
-            and jobs.farmer_id = auth.uid()
-        )
-        or
-        laborer_id = auth.uid()
-    );
-
--- Create policies for reviews
-create policy "Reviews are viewable by everyone"
-    on reviews for select
-    using (true);
-
-create policy "Users can create reviews for completed jobs"
-    on reviews for insert
-    with check (
-        exists (
-            select 1 from job_applications
-            where job_applications.job_id = reviews.job_id
-            and (
-                (job_applications.laborer_id = auth.uid() and reviews.reviewer_id = auth.uid())
-                or
-                exists (
-                    select 1 from jobs
-                    where jobs.id = job_applications.job_id
-                    and jobs.farmer_id = auth.uid()
-                    and reviews.reviewer_id = auth.uid()
-                )
-            )
-            and job_applications.status = 'completed'
-        )
-    );
-
--- Create function to handle new user signup
-create or replace function public.handle_new_user()
+CREATE OR REPLACE FUNCTION update_profile_rating()
 returns trigger
 language plpgsql
-security definer set search_path = public
 as $$
+declare
+    avg_rating numeric;
+    total_count integer;
 begin
-    insert into public.profiles (id, name, phone, user_type)
-    values (
-        new.id,
-        new.raw_user_meta_data->>'name',
-        new.phone,
-        (new.raw_user_meta_data->>'user_type')::user_type
-    );
+    -- Calculate new average rating and total count
+    select 
+        avg(rating),
+        count(*)
+    into
+        avg_rating,
+        total_count
+    from reviews
+    where reviewee_id = new.reviewee_id;
+
+    -- Update the profile
+    update profiles
+    set
+        rating = coalesce(avg_rating, 0),
+        total_ratings = total_count
+    where id = new.reviewee_id;
+
     return new;
 end;
 $$;
 
--- Create trigger for new user signup
-create or replace trigger on_auth_user_created
-    after insert on auth.users
-    for each row execute procedure public.handle_new_user();
-
--- Create function to automatically update the updated_at column
-create or replace function update_updated_at_column()
+CREATE OR REPLACE FUNCTION update_job_application_counts()
 returns trigger
 language plpgsql
 as $$
+declare
+    app_count integer;
+    hired_count integer;
 begin
-    new.updated_at = now();
+    -- Calculate new counts
+    select
+        count(*),
+        count(*) filter (where status = 'accepted')
+    into
+        app_count,
+        hired_count
+    from job_applications
+    where job_id = coalesce(new.job_id, old.job_id);
+
+    -- Update the job
+    update jobs
+    set
+        applications_count = app_count,
+        hired_count = hired_count
+    where id = coalesce(new.job_id, old.job_id);
+
     return new;
 end;
 $$;
 
--- Create triggers for updating the updated_at column
-create trigger update_profiles_updated_at
-    before update on profiles
-    for each row execute procedure update_updated_at_column();
+CREATE OR REPLACE FUNCTION create_notification(
+    user_id uuid,
+    type notification_type,
+    title text,
+    message text,
+    data jsonb default null
+)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+    insert into notifications (user_id, type, title, message, data)
+    values (user_id, type, title, message, data);
+end;
+$$;
 
-create trigger update_jobs_updated_at
-    before update on jobs
-    for each row execute procedure update_updated_at_column();
+CREATE OR REPLACE FUNCTION handle_application_status_change()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+    job_title text;
+    farmer_id uuid;
+    laborer_name text;
+begin
+    -- Get job title and farmer_id
+    select title, farmer_id into job_title, farmer_id
+    from jobs where id = new.job_id;
 
-create trigger update_applications_updated_at
-    before update on job_applications
-    for each row execute procedure update_updated_at_column();
+    -- Get laborer name
+    select name into laborer_name
+    from profiles where id = new.laborer_id;
 
-create trigger update_reviews_updated_at
-    before update on reviews
-    for each row execute procedure update_updated_at_column();
+    -- Create appropriate notification based on status change
+    case new.status
+        when 'accepted' then
+            -- Notify worker
+            perform create_notification(
+                new.laborer_id,
+                'application_accepted',
+                'Application Accepted',
+                format('Your application for "%s" has been accepted', job_title),
+                jsonb_build_object('job_id', new.job_id)
+            );
+        when 'rejected' then
+            -- Notify worker
+            perform create_notification(
+                new.laborer_id,
+                'application_rejected',
+                'Application Rejected',
+                format('Your application for "%s" has been rejected', job_title),
+                jsonb_build_object('job_id', new.job_id)
+            );
+        when 'completed' then
+            -- Notify both parties
+            perform create_notification(
+                farmer_id,
+                'job_completed',
+                'Job Completed',
+                format('Job "%s" has been marked as completed by %s', job_title, laborer_name),
+                jsonb_build_object('job_id', new.job_id)
+            );
+            perform create_notification(
+                new.laborer_id,
+                'job_completed',
+                'Job Completed',
+                format('Job "%s" has been marked as completed', job_title),
+                jsonb_build_object('job_id', new.job_id)
+            );
+        else
+            -- Do nothing for other status changes
+    end case;
 
--- Create function to update profile ratings
-create or replace function update_profile_rating()
+    return new;
+end;
+$$;
+
+CREATE OR REPLACE FUNCTION handle_worker_status_change()
 returns trigger
 language plpgsql
 security definer
 as $$
 begin
-    update profiles
-    set rating = (
-        select avg(rating)::decimal(3,2)
-        from reviews
-        where reviewee_id = new.reviewee_id
-    ),
-    total_ratings = (
-        select count(*)
-        from reviews
-        where reviewee_id = new.reviewee_id
-    )
-    where id = new.reviewee_id;
+    -- Update last_active timestamp
+    new.last_active = now();
     return new;
 end;
 $$;
 
--- Create trigger for updating profile ratings
-create trigger on_review_created
-    after insert or update on reviews
-    for each row execute procedure update_profile_rating(); 
+-- Create triggers
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+CREATE TRIGGER update_profiles_updated_at
+    BEFORE UPDATE ON profiles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_jobs_updated_at ON jobs;
+CREATE TRIGGER update_jobs_updated_at
+    BEFORE UPDATE ON jobs
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_applications_updated_at ON job_applications;
+CREATE TRIGGER update_applications_updated_at
+    BEFORE UPDATE ON job_applications
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_reviews_updated_at ON reviews;
+CREATE TRIGGER update_reviews_updated_at
+    BEFORE UPDATE ON reviews
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS on_review_created ON reviews;
+CREATE TRIGGER on_review_created
+    AFTER INSERT OR UPDATE ON reviews
+    FOR EACH ROW EXECUTE FUNCTION update_profile_rating();
+
+DROP TRIGGER IF EXISTS on_application_change ON job_applications;
+CREATE TRIGGER on_application_change
+    AFTER INSERT OR UPDATE OR DELETE ON job_applications
+    FOR EACH ROW EXECUTE FUNCTION update_job_application_counts();
+
+DROP TRIGGER IF EXISTS on_application_status_change ON job_applications;
+CREATE TRIGGER on_application_status_change
+    AFTER UPDATE OF status ON job_applications
+    FOR EACH ROW
+    WHEN (OLD.status IS DISTINCT FROM NEW.status)
+    EXECUTE FUNCTION handle_application_status_change();
+
+DROP TRIGGER IF EXISTS on_worker_status_change ON profiles;
+CREATE TRIGGER on_worker_status_change
+    BEFORE UPDATE OF status ON profiles
+    FOR EACH ROW
+    WHEN (OLD.status IS DISTINCT FROM NEW.status)
+    EXECUTE FUNCTION handle_worker_status_change();
+
+-- Enable Row Level Security
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.job_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.worker_history ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "System can create user profiles" ON public.profiles;
+
+-- Create policies for profiles
+CREATE POLICY "Users can view their own profile"
+    ON public.profiles FOR SELECT
+    USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile"
+    ON public.profiles FOR UPDATE
+    USING (auth.uid() = id);
+
+CREATE POLICY "System can create user profiles"
+    ON public.profiles FOR INSERT
+    WITH CHECK (true);
+
+-- Rest of the policies remain the same...
+CREATE POLICY "Farmers can view their own jobs"
+    ON public.jobs FOR SELECT
+    USING (farmer_id = auth.uid());
+
+CREATE POLICY "Farmers can create jobs"
+    ON public.jobs FOR INSERT
+    WITH CHECK (farmer_id = auth.uid());
+
+CREATE POLICY "Farmers can update their own jobs"
+    ON public.jobs FOR UPDATE
+    USING (farmer_id = auth.uid());
+
+CREATE POLICY "Users can view their own notifications"
+    ON public.notifications FOR SELECT
+    USING (user_id = auth.uid());
+
+CREATE POLICY "System can create notifications"
+    ON public.notifications FOR INSERT
+    WITH CHECK (true);
+
+CREATE POLICY "Users can update their own notifications"
+    ON public.notifications FOR UPDATE
+    USING (user_id = auth.uid());
+
+CREATE POLICY "Worker history viewable by involved parties"
+    ON public.worker_history FOR SELECT
+    USING (
+        worker_id = auth.uid()
+        or
+        farmer_id = auth.uid()
+    ); 

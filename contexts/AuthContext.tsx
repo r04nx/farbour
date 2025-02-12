@@ -17,7 +17,7 @@ type AuthContextType = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (phone: string, name: string) => Promise<{ error: any | null }>;
+  signIn: (phone: string, name: string) => Promise<{ error: any | null, isNewUser: boolean }>;
   verifyOTP: (phone: string, token: string) => Promise<{ error: any | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: any | null }>;
@@ -57,84 +57,105 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  async function getProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+  async function getProfile(userId: string, retryCount = 0) {
+    try {
+      // First check if user exists and get profile data
+      const { data: checkData, error: checkError } = await supabase
+        .rpc('check_user_exists', { phone_number: user?.phone || '' });
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-    } else {
-      setProfile(data);
+      if (checkError) {
+        console.error('Error checking user:', checkError);
+        return;
+      }
+
+      // If profile doesn't exist in either auth or profiles, wait and retry
+      if (!checkData[0].exists_in_profiles && retryCount < 3) {
+        console.log('Profile not found, retrying...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return getProfile(userId, retryCount + 1);
+      }
+
+      // If we have profile data from check_user_exists, use it
+      if (checkData[0].profile_data) {
+        setProfile(checkData[0].profile_data);
+        return;
+      }
+
+      // Fallback to direct profile fetch
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116' && retryCount < 3) {
+          // If profile doesn't exist and we haven't retried too many times
+          console.log('Profile not found, retrying...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return getProfile(userId, retryCount + 1);
+        }
+        console.error('Error fetching profile:', error);
+      } else if (data) {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error in getProfile:', error);
     }
   }
 
   const signIn = async (phone: string, name: string) => {
     try {
-      // Check for test user
-      if (phone === TEST_USER.phone && name.toLowerCase() === TEST_USER.name) {
-        console.log('Using test user credentials');
-        return { error: null };
+      // First, check if user exists
+      const { data: checkData, error: checkError } = await supabase
+        .rpc('check_user_exists', { phone_number: phone });
+
+      if (checkError) {
+        console.error('Error checking user:', checkError);
+        return { error: checkError, isNewUser: false };
       }
 
+      const isNewUser = !checkData[0].exists_in_profiles;
+
+      // Sign in with OTP
       const { error } = await supabase.auth.signInWithOtp({
         phone,
         options: {
           data: {
             name,
-            user_type: 'farmer',
+            user_type: 'farmer', // Default to farmer, can be changed later
           },
         },
       });
-      return { error };
+
+      return { error, isNewUser };
     } catch (error) {
-      return { error };
+      console.error('Error in signIn:', error);
+      return { error, isNewUser: false };
     }
   };
 
   const verifyOTP = async (phone: string, token: string) => {
     try {
-      // Check for test user
-      if (phone === TEST_USER.phone) {
-        if (token === '1234') {
-          // Create a test session
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: `${TEST_USER.phone}@test.com`,
-            password: 'test-password',
-          });
-
-          if (!error && data.user) {
-            // Create or update test user profile
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .upsert({
-                id: data.user.id,
-                name: TEST_USER.name,
-                phone: TEST_USER.phone,
-                user_type: TEST_USER.user_type,
-                is_phone_verified: true,
-              });
-
-            if (profileError) {
-              console.error('Error creating test profile:', profileError);
-            }
-          }
-
-          return { error: null };
-        } else {
-          return { error: new Error('Invalid test user OTP. Use 1234.') };
-        }
-      }
-
       const { error } = await supabase.auth.verifyOtp({
         phone,
         token,
         type: 'sms',
       });
+
+      if (!error) {
+        // After successful verification, get the user's profile
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user) {
+          // Add a longer delay before fetching profile to ensure trigger completes
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await getProfile(userData.user.id);
+        }
+      }
+
       return { error };
     } catch (error) {
+      console.error('Error in verifyOTP:', error);
       return { error };
     }
   };
