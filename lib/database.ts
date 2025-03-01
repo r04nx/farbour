@@ -223,26 +223,100 @@ export async function markNotificationAsRead(notificationId: string) {
   return data as Notification;
 }
 
+interface WorkerHistoryWithProfile {
+  id: string;
+  status: string;
+  total_earnings: number;
+  worker: {
+    id: string;
+    name: string;
+  };
+}
+
+// Test database connection
+export async function testDatabaseConnection() {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('count')
+      .limit(1);
+    
+    if (error) {
+      console.error('Database connection test error:', error);
+      return false;
+    }
+    
+    console.log('Database connection successful');
+    return true;
+  } catch (error) {
+    console.error('Database connection test error:', error);
+    return false;
+  }
+}
+
 // Stats functions
 export async function getFarmerStats(farmerId: string) {
-  const { data: jobs, error: jobsError } = await supabase
-    .from('jobs')
-    .select('status')
-    .eq('farmer_id', farmerId);
+  try {
+    console.log('Fetching stats for farmer:', farmerId);
+    
+    // First verify the farmer exists
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, user_type')
+      .eq('id', farmerId)
+      .single();
 
-  if (jobsError) throw jobsError;
+    if (profileError) {
+      console.error('Error fetching farmer profile:', profileError);
+      throw new Error(`Farmer profile not found: ${profileError.message}`);
+    }
 
-  const { data: workers, error: workersError } = await supabase
-    .from('worker_history')
-    .select('worker_id')
-    .eq('farmer_id', farmerId)
-    .distinct();
+    if (!profile) {
+      throw new Error('Farmer profile not found');
+    }
 
-  if (workersError) throw workersError;
+    if (profile.user_type !== 'farmer') {
+      throw new Error('User is not a farmer');
+    }
 
-  return {
-    activeJobs: jobs?.filter(j => j.status === 'active').length || 0,
-    totalWorkers: workers?.length || 0,
-    completedJobs: jobs?.filter(j => j.status === 'completed').length || 0,
-  };
-} 
+    // Now fetch the stats
+    const { data: stats, error: statsError } = await supabase
+      .rpc('get_farmer_stats', { farmer_id: farmerId });
+
+    if (statsError) {
+      console.error('Supabase RPC error:', statsError);
+      throw new Error(`Error fetching stats: ${statsError.message}`);
+    }
+    
+    if (!stats) {
+      console.error('No stats returned from database');
+      throw new Error('No stats data returned');
+    }
+
+    console.log('Raw stats from database:', stats);
+
+    // Convert all values to numbers and provide defaults
+    const processedStats = {
+      activeJobs: Number(stats.active_jobs) || 0,
+      completedJobs: Number(stats.completed_jobs) || 0,
+      totalJobs: Number(stats.total_jobs) || 0,
+      totalApplications: Number(stats.total_applications) || 0,
+      totalHired: Number(stats.total_hired) || 0,
+      totalWorkers: Number(stats.total_workers) || 0,
+      totalEarnings: Number(stats.total_earnings) || 0,
+      averageRating: Number(stats.average_rating) || 0,
+      totalReviews: Number(stats.total_reviews) || 0,
+      jobCompletionRate: Number(stats.job_completion_rate) || 0,
+      applicationSuccessRate: Number(stats.application_success_rate) || 0,
+    };
+
+    console.log('Processed stats:', processedStats);
+    return processedStats;
+  } catch (error) {
+    console.error('Error in getFarmerStats:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Unknown error in getFarmerStats');
+  }
+}

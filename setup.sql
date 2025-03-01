@@ -612,4 +612,76 @@ CREATE TRIGGER on_worker_status_change
     BEFORE UPDATE OF status ON profiles
     FOR EACH ROW
     WHEN (OLD.status IS DISTINCT FROM NEW.status)
-    EXECUTE FUNCTION handle_worker_status_change(); 
+    EXECUTE FUNCTION handle_worker_status_change();
+
+-- Create function to get farmer stats
+CREATE OR REPLACE FUNCTION get_farmer_stats(farmer_id UUID)
+RETURNS TABLE (
+  active_jobs BIGINT,
+  completed_jobs BIGINT,
+  total_jobs BIGINT,
+  total_applications BIGINT,
+  total_hired BIGINT,
+  total_workers BIGINT,
+  total_earnings NUMERIC,
+  average_rating NUMERIC,
+  total_reviews BIGINT,
+  job_completion_rate NUMERIC,
+  application_success_rate NUMERIC
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH job_stats AS (
+    SELECT 
+      COUNT(*) FILTER (WHERE status = 'active') as active_jobs,
+      COUNT(*) FILTER (WHERE status = 'completed') as completed_jobs,
+      COUNT(*) as total_jobs,
+      COALESCE(SUM(applications_count), 0) as total_applications,
+      COALESCE(SUM(hired_count), 0) as total_hired
+    FROM jobs 
+    WHERE farmer_id = $1
+  ),
+  worker_stats AS (
+    SELECT 
+      COUNT(DISTINCT worker_id) as total_workers,
+      COALESCE(SUM(total_earnings) FILTER (WHERE status = 'completed'), 0) as total_earnings
+    FROM worker_history
+    WHERE farmer_id = $1
+  ),
+  review_stats AS (
+    SELECT 
+      COUNT(*) as total_reviews,
+      COALESCE(AVG(rating), 0) as average_rating
+    FROM reviews
+    WHERE reviewee_id = $1
+  )
+  SELECT 
+    job_stats.active_jobs,
+    job_stats.completed_jobs,
+    job_stats.total_jobs,
+    job_stats.total_applications,
+    job_stats.total_hired,
+    worker_stats.total_workers,
+    worker_stats.total_earnings,
+    ROUND(review_stats.average_rating::numeric, 2) as average_rating,
+    review_stats.total_reviews,
+    CASE 
+      WHEN job_stats.total_jobs > 0 
+      THEN ROUND((job_stats.completed_jobs::numeric / job_stats.total_jobs * 100)::numeric, 2)
+      ELSE 0 
+    END as job_completion_rate,
+    CASE 
+      WHEN job_stats.total_applications > 0 
+      THEN ROUND((job_stats.total_hired::numeric / job_stats.total_applications * 100)::numeric, 2)
+      ELSE 0 
+    END as application_success_rate
+  FROM job_stats, worker_stats, review_stats;
+END;
+$$;
+
+-- Grant execute permission on the function
+GRANT EXECUTE ON FUNCTION get_farmer_stats(UUID) TO authenticated;
