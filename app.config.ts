@@ -26,7 +26,7 @@ if (!twilioAccountSid || !twilioAuthToken || !twilioServiceSid) {
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Farbour',
-  slug: 'farbour',
+  slug: 'krishi-connect',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
@@ -69,8 +69,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       serviceSid: twilioServiceSid,
     },
     eas: {
-      projectId: "your-project-id"
+      projectId: "a2aee38b-da1b-4b7b-9d72-29d4af0e8394"
     }
   },
-  owner: "your-expo-username"
+  owner: "r04nx"
 }); 

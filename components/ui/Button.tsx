@@ -3,14 +3,15 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ThemedText } from '@/components/ThemedText';
 import { SPACING, TYPOGRAPHY } from '@/constants/Theme';
+import React from 'react';
 
 interface ButtonProps {
   title: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'outline';
   size?: 'small' | 'medium' | 'large';
-  leftIcon?: string;
-  rightIcon?: string;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
   loading?: boolean;
   disabled?: boolean;
   style?: any;
@@ -73,12 +74,18 @@ export function Button({
       ) : (
         <>
           {leftIcon && (
-            <MaterialCommunityIcons
-              name={leftIcon}
-              size={20}
-              color={getTextColor()}
-              style={styles.leftIcon}
-            />
+            typeof leftIcon === 'string' ? (
+              <MaterialCommunityIcons
+                name={leftIcon}
+                size={20}
+                color={getTextColor()}
+                style={styles.leftIcon}
+              />
+            ) : (
+              <React.Fragment>
+                {leftIcon}
+              </React.Fragment>
+            )
           )}
           <ThemedText
             style={[
@@ -90,12 +97,18 @@ export function Button({
             {title}
           </ThemedText>
           {rightIcon && (
-            <MaterialCommunityIcons
-              name={rightIcon}
-              size={20}
-              color={getTextColor()}
-              style={styles.rightIcon}
-            />
+            typeof rightIcon === 'string' ? (
+              <MaterialCommunityIcons
+                name={rightIcon}
+                size={20}
+                color={getTextColor()}
+                style={styles.rightIcon}
+              />
+            ) : (
+              <React.Fragment>
+                {rightIcon}
+              </React.Fragment>
+            )
           )}
         </>
       )}

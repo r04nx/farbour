@@ -2,15 +2,11 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
-
-// Test user credentials
-const TEST_USER = {
-  name: 'rohan',
-  phone: '1234',
-  user_type: 'farmer' as const,
-};
 
 type AuthContextType = {
   session: Session | null;
@@ -21,6 +17,7 @@ type AuthContextType = {
   verifyOTP: (phone: string, token: string) => Promise<{ error: any | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: any | null }>;
+  signInWithGoogle: () => Promise<{ error: any | null }>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // If profile doesn't exist in either auth or profiles, wait and retry
       if (!checkData[0].exists_in_profiles && retryCount < 3) {
-        console.log('Profile not found, retrying...');
+        // Do not log error for new users (profile not found)
         await new Promise(resolve => setTimeout(resolve, 1000));
         return getProfile(userId, retryCount + 1);
       }
@@ -89,13 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116' && retryCount < 3) {
-          // If profile doesn't exist and we haven't retried too many times
-          console.log('Profile not found, retrying...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return getProfile(userId, retryCount + 1);
+        // Only log error if it's not a 'profile not found' error
+        if (error.code !== 'PGRST116') {
+          console.error('Error fetching profile:', error);
         }
-        console.error('Error fetching profile:', error);
       } else if (data) {
         setProfile(data);
       }
@@ -144,12 +138,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!error) {
-        // After successful verification, get the user's profile
         const { data: userData } = await supabase.auth.getUser();
         if (userData.user) {
           // Add a longer delay before fetching profile to ensure trigger completes
           await new Promise(resolve => setTimeout(resolve, 2000));
           await getProfile(userData.user.id);
+
+          // If profile is still null, create it for new users
+          if (!profile) {
+            await supabase.from('profiles').insert({
+              id: userData.user.id,
+              name: '', // Optionally use the name from sign-in if available
+              phone,
+              user_type: 'farmer', // Or set as appropriate
+            });
+            // Fetch again
+            await getProfile(userData.user.id);
+          }
         }
       }
 
@@ -183,6 +188,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      // Use the native redirect URI for Expo/React Native
+      const redirectTo = AuthSession.makeRedirectUri({ useProxy: false });
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo },
+      });
+      return { error: error ?? null };
+    } catch (error) {
+      return { error };
+    }
+  };
+
   const value = {
     session,
     user,
@@ -192,6 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     verifyOTP,
     signOut,
     updateProfile,
+    signInWithGoogle,
   };
 
   return (

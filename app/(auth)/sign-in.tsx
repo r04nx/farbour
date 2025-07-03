@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, ImageBackground, View, TouchableOpacity, Platform, KeyboardAvoidingView } from 'react-native';
+import { StyleSheet, ImageBackground, View, TouchableOpacity, Platform, KeyboardAvoidingView, Image } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, FadeIn } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
@@ -14,6 +16,7 @@ import { SPACING, TYPOGRAPHY, BRAND_COLORS } from '@/constants/Theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import GoogleLogo from '@/assets/google-logo.png';
 
 const COUNTRY_CODE = '+91';
 const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?q=80&w=2574&auto=format&fit=crop';
@@ -25,7 +28,7 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
 
   const handleSignIn = async () => {
     if (!name || !phone) {
@@ -66,6 +69,16 @@ export default function SignInScreen() {
           isNewUser: isNewUser ? 'true' : 'false'
         }
       });
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setError(null);
+    const { error } = await signInWithGoogle();
+    setLoading(false);
+    if (error) {
+      setError('Google sign-in failed. Please try again.');
     }
   };
 
@@ -190,6 +203,31 @@ export default function SignInScreen() {
               disabled={!name || !phone || loading}
               style={styles.button}
               leftIcon="arrow-right"
+            />
+
+            {/* Google Sign-In Button */}
+            <Button
+              title="Continue with Google"
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+              variant="outline"
+              style={[
+                styles.button,
+                {
+                  backgroundColor: '#fff',
+                  marginTop: 8,
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  opacity: 0.92,
+                },
+              ]}
+              leftIcon={
+                <Image
+                  source={GoogleLogo}
+                  style={{ width: 20, height: 20, marginRight: 8 }}
+                  resizeMode="contain"
+                />
+              }
             />
 
             <ThemedView style={styles.infoContainer}>

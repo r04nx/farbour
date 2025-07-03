@@ -208,6 +208,23 @@ export default function FarmerHomeScreen() {
     return <LoadingScreen />;
   }
 
+  // Example quote of the day
+  const quoteOfTheDay =
+    'The farmer has to be an optimist or he wouldn\'t still be a farmer. - Will Rogers';
+
+  // Show error if present
+  if (error) {
+    return (
+      <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+        <MaterialCommunityIcons name="alert-circle" size={48} color={BRAND_COLORS.accent[500]} />
+        <ThemedText style={{ color: '#fff', fontSize: 18, marginTop: 16, textAlign: 'center' }}>{error}</ThemedText>
+        <TouchableOpacity onPress={handleRefresh} style={{ marginTop: 24 }}>
+          <ThemedText style={{ color: BRAND_COLORS.primary[400], fontSize: 16 }}>Try Again</ThemedText>
+        </TouchableOpacity>
+      </ThemedView>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -222,6 +239,11 @@ export default function FarmerHomeScreen() {
       >
         <ThemedText style={styles.greeting}>Welcome back,</ThemedText>
         <ThemedText style={styles.name}>{profile?.name || 'Farmer'}</ThemedText>
+
+        {/* Quote of the day */}
+        <ThemedView style={{ marginVertical: 12, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10, padding: 12 }}>
+          <ThemedText style={{ color: '#fff', fontStyle: 'italic', textAlign: 'center', fontSize: 15 }}>{quoteOfTheDay}</ThemedText>
+        </ThemedView>
 
         <ThemedView style={styles.statsContainer}>
           <ThemedView style={styles.statsRow}>
